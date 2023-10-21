@@ -7,14 +7,18 @@ import images from '../assets';
 
 import { NFTContext } from '@/context/nftcontext';
 import Button from './Button';
+import { shortenAddress } from '@/utils/shortedAddress';
 
 const MenuItems = ({ active, setactive }) => {
+  const { fetchmynft, currentAccount } = useContext(NFTContext);
+  // console.log('check');
+  // console.log(currentAccount === '0x2546bcd3c84621e976d8185a91a922ae77ecec30');
   const generateLink = (i) => {
     switch (i) {
       case 0:
         return '/';
       case 1:
-        return '/created-nft';
+        return `${currentAccount === '0x2546bcd3c84621e976d8185a91a922ae77ecec30' ? '/collateral-nft' : '/created-nft'}`;
       case 2:
         return '/my-nfts';
 
@@ -25,7 +29,7 @@ const MenuItems = ({ active, setactive }) => {
   return (
     // eslint-disable-next-line no-template-curly-in-string
     <ul className={'list-none flex justify-between flex-row ${isMobile && "flex-col"} '}>
-      {['Explore NFTs', 'Listed NFTs', 'MY NFTs'].map((item, i) => (
+      {['Explore NFTs', `${currentAccount === '0x2546bcd3c84621e976d8185a91a922ae77ecec30' ? 'Collateral NFTs' : 'Listed NFTs'}`, 'MY NFTs'].map((item, i) => (
         <li
           key={i}
           onClick={() => {

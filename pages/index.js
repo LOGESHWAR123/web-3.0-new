@@ -1,16 +1,21 @@
 import { useRef, useState, useEffect, useContext } from 'react';
 import Image from 'next/image';
 import { useTheme } from 'next-themes';
-import { Banner, CreatorCard, NFTCard } from '../components';
+import { Banner, CreatorCard, NFTCard, SearchBar } from '../components';
 import images from '../assets';
 import { makeId } from '../utils/makeid';
 import { NFTContext } from '@/context/nftcontext';
+import { getCreators } from '../utils/getTopCreators';
+import { shortenAddress } from '@/utils/shortedAddress';
 
 const Home = () => {
   const { fetchNFT } = useContext(NFTContext);
   const [hideButtons, setHideButtons] = useState(false);
   const [nfts, setnfts] = useState(null);
   const { theme } = useTheme();
+  const [nftscopy, setnftscopy] = useState([]);
+  const [isloading, setisloading] = useState(false);
+  const [activeSelect, setactiveSelect] = useState('Recently added');
   const parentRef = useRef(null);
   const scrollRef = useRef(null);
 
@@ -18,10 +23,45 @@ const Home = () => {
     fetchNFT()
       .then((items) => {
         setnfts(items);
+        setnftscopy(items);
         console.log('items');
         console.log(nfts);
       });
   }, []);
+
+  useEffect(() => {
+    const sortedNfts = [...nftscopy];
+    switch (activeSelect) {
+      case 'Price(low to high)':
+        setnfts(sortedNfts.sort((a, b) => a.price - b.price));
+        break;
+      case 'Price (high to low)':
+        setnfts(sortedNfts.sort((a, b) => b.price - a.price));
+        break;
+      case 'Recently added':
+        setnfts(sortedNfts.sort((a, b) => b.tokenId - a.tokenId));
+        break;
+      default:
+        setnfts(nfts);
+        break;
+    }
+  }, [activeSelect]);
+
+  const onhandleSearch = (value) => {
+    const filterNFTs = nfts.filter(({ name }) => name.toLowerCase().includes(value.toLowerCase()));
+
+    if (filterNFTs.length) {
+      setnfts(filterNFTs);
+    } else {
+      setnfts(nftscopy);
+    }
+  };
+
+  const onclearSearch = () => {
+    if (nftscopy.length) {
+      setnfts(nftscopy);
+    }
+  };
 
   const handleScroll = (direction) => {
     const { current } = scrollRef;
@@ -54,6 +94,8 @@ const Home = () => {
     };
   });
 
+  const topCreators = getCreators(nftscopy);
+
   return (
     <div className="flex justify-center sm:px-4 p-12">
       <div className="w-full minmd:w-4/5">
@@ -72,13 +114,22 @@ const Home = () => {
               className="flex flex-row w-max overflow-x-scroll no-scrollbar select-none"
               ref={scrollRef}
             >
-              {[6, 7, 8, 9, 10].map((i) => (
+              {/* {[6, 7, 8, 9, 10].map((i) => (
                 <CreatorCard
                   key={`creator-${i}`}
                   rank={i}
                   creatorImage={images[`creator${i}`]}
                   creatorName={`0x${makeId(3)}...${makeId(4)}`}
                   creatorEth={10 - i * 0.5}
+                />
+              ))} */}
+              {topCreators.map((creator, i) => (
+                <CreatorCard
+                  key={creator.seller}
+                  rank={i + 1}
+                  creatorImage={images[`creator${i + 6}`]}
+                  creatorName={shortenAddress(creator.seller)}
+                  creatorEth={creator.sum}
                 />
               ))}
               {!hideButtons && (
@@ -96,8 +147,13 @@ const Home = () => {
         </div>
         <div className="flexBetween mx-4 xs:mx-0 minlg:mx-8 sm:flex-col sm:items-start">
           <h1 className="flex-1 before:first:font-poppins dark:text-white text-nft-black-1 text-2xl minlg:text-4xl font-semibold sm:mb-4">Exciting Contents</h1>
-          <div>
-            SearchBar
+          <div className="flex-2 sm:w-full flex flex-row sm:flex-col">
+            <SearchBar
+              activeSelect={activeSelect}
+              setactiveSelect={setactiveSelect}
+              handleSearch={onhandleSearch}
+              clearSearch={onclearSearch}
+            />
           </div>
         </div>
         <div className="mt-3 w-full flex flex-wrap justify-start md:justify-center">

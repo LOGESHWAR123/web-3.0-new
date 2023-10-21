@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import Web3Modal from 'web3modal';
 import { ethers } from 'ethers';
 import axios from 'axios';
-
 import { Blob } from 'blob-polyfill';
 import { NFTStorage, File } from 'nft.storage';
 
@@ -50,7 +49,8 @@ export const NFTProvider = ({ children }) => {
       const response = await fetch(`https://ipfs.io/ipfs/${metadata}`);
       const blob1 = await response.blob();
       const url = URL.createObjectURL(blob1);
-      return url;
+      const publicUrl = `https://ipfs.io/ipfs/${metadata}`;
+      return publicUrl;
     } catch (error) {
       console.log(error);
     }
@@ -68,7 +68,8 @@ export const NFTProvider = ({ children }) => {
       const response = await fetch(`https://ipfs.io/ipfs/${metadata}`);
       const blob1 = await response.blob();
       const url = URL.createObjectURL(blob1);
-      await createSale(url, price);
+      const publicUrl = `https://ipfs.io/ipfs/${metadata}`;
+      await createSale(publicUrl, price);
       console.log(3);
       console.log(url);
       router.push('/');
@@ -88,7 +89,9 @@ export const NFTProvider = ({ children }) => {
       const contract = fetchContract(signer);
       const listingPrice = await contract.getListingPrice();
 
-      const transaction = await contract.createToken(url, price, { value: listingPrice.toString() });
+      const transaction = !isReselling
+        ? await contract.createToken(url, price, { value: listingPrice.toString() })
+        : await contract.resellToken(id, price, { value: listingPrice.toString() });
       console.log(price, url);
       await transaction.wait();
     } catch (error) {
@@ -151,8 +154,80 @@ export const NFTProvider = ({ children }) => {
 
     return items;
   };
+
+  const buyNFT = async (nft) => {
+    const web3Modal = new Web3Modal();
+    const connection = await web3Modal.connect();
+    const provider = new ethers.providers.Web3Provider(connection);
+    const signer = provider.getSigner();
+
+    const contract = fetchContract(signer);
+    const price = ethers.utils.parseUnits(nft.price, 18);
+
+    const transaction = await contract.createMarketSale(nft.tokenId, { value: price });
+
+    await transaction.wait();
+  };
+
+  const peer = async (nft, sender) => {
+    const web3Modal = new Web3Modal();
+    const connection = await web3Modal.connect();
+    const provider = new ethers.providers.Web3Provider(connection);
+    const signer = provider.getSigner();
+
+    const contract = fetchContract(signer);
+    const price = ethers.utils.parseUnits(nft.price, 18);
+
+    // Check if the user has enough ether to purchase the NFT.
+    const balance = await provider.getBalance(signer.address);
+    if (balance < price) {
+      throw new Error('Not enough ether to purchase NFT');
+    }
+
+    // Create a transaction that will purchase the NFT.
+    const transaction = await contract.createMarkeytSale(nft.tokenId, { value: price });
+
+    transaction.on('confirmation', async (confirmations) => {
+      console.log(`NFT purchased! ${confirmations} confirmations received.`);
+
+      // Transfer the NFT to the sender.
+      await contract.transferNFT(nft.tokenId, sender);
+    });
+
+    // Submit the transaction to the Ethereum network.
+    await transaction.wait();
+  };
+
+  const transfer1 = async (nft, receiver) => {
+    // Initialize a connection to the Ethereum network via Web3Modal
+    const web3Modal = new Web3Modal();
+    const connection = await web3Modal.connect();
+
+    // Create a provider and signer using the connected Ethereum provider
+    const provider = new ethers.providers.Web3Provider(connection);
+    const signer = provider.getSigner();
+
+    // Fetch the contract instance for the marketplace using the signer
+    const contract = fetchContract(signer);
+
+    // Parse the NFT price into units compatible with the Ethereum network
+    const price = ethers.utils.parseUnits(nft.price, 18);
+
+    try {
+      // Start a transaction to purchase and transfer the NFT
+      const transaction = await contract.purchaseAndTransferNFT(nft.tokenId, { value: price, to: receiver });
+
+      // Wait for the transaction to be confirmed on the Ethereum network
+      await transaction.wait();
+
+      console.log('NFT purchased and transferred successfully.');
+    } catch (error) {
+      console.error('Error purchasing and transferring NFT:', error);
+    }
+  };
+
   return (
-    <NFTContext.Provider value={{ nftCurrency, connectWallet, currentAccount, uploadtoIPFS, createNFT, fetchNFT, fetchmynft }}>
+    <NFTContext.Provider value={{ nftCurrency, connectWallet, currentAccount, uploadtoIPFS, createNFT, fetchNFT, fetchmynft, buyNFT, createSale, peer, transfer1 }}>
       {children}
     </NFTContext.Provider>
   );
